@@ -380,6 +380,7 @@ static void config_defaults(struct sway_config *config) {
 	config->window_resize_curve_c2y = 1.0;
 	config->workspace_switch_anim = false;
 	config->workspace_anim_duration_ms = 200.0f;
+	config->workspace_anim_step_ms = 200.0f;
 	// Same curve as Hyprland's menu_decel (the default).
 	config->workspace_switch_curve_c1x = 0.10;
 	config->workspace_switch_curve_c1y = 1.00;

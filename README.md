@@ -40,6 +40,28 @@ Control the duration and easing of window open, close, and move/resize animation
   - Curve presets: `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`, `ease-out-cubic` (default), `menu_decel`.
   - Example: `window_open_curve cubic-bezier(0.215, 0.61, 0.355, 1)`.
 
+### Workspace Switch Animations
+Directional slide animation when switching workspaces on the same output.
+
+- `workspace_switch_anim <yes|no>`: Enable the slide animation (default: `no`).
+- `workspace_anim_duration_ms <value>`: Fixed slide duration in milliseconds (0-5000, default: 200). Used when `workspace_anim_step_ms` is `0`.
+- `workspace_anim_step_ms <value>`: Per-workspace-step time in milliseconds (0-5000, default: 200). A jump spanning N workspaces takes `step * N`. Set to `0` for a fixed `workspace_anim_duration_ms` regardless of distance.
+- `workspace_switch_curve <preset|cubic-bezier(a, b, c, d)>`: Easing for the slide (default: `menu_decel`).
+  - Curve presets: `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`, `menu_decel` (default).
+  - Example: `workspace_switch_curve cubic-bezier(0.1, 1, 0, 1)`.
+
+Behavior:
+- Slides right when moving forward (e.g. `1` to `2`) and left when moving back, based on workspace numbers and output order. `workspace next` always slides right and `workspace prev` always slides left, even when wrapping around.
+- Long jumps slide through every non-empty workspace in between as a filmstrip, so switching `1` to `3` visibly passes workspace `2`. Empty middle workspaces are skipped; an empty destination still slides in as blank space.
+- No animation across different outputs or when a fullscreen workspace is involved.
+
+Example:
+```sway
+workspace_switch_anim yes
+workspace_anim_step_ms 200
+workspace_switch_curve menu_decel
+```
+
 New windows use pop/expand animations by default when opening and closing.
 
 Default config convenience:

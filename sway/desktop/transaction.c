@@ -973,7 +973,8 @@ static int get_switch_animation_offset(struct sway_workspace *ws) {
 
 	if (!animation || !config->workspace_switch_anim ||
 			!config->animation_duration_ms ||
-			!config->workspace_anim_duration_ms) {
+			(!config->workspace_anim_duration_ms &&
+				!config->workspace_anim_step_ms)) {
 		int target = ws->switch_animation_state.target_x;
 		stop_workspace_switch_animation(ws);
 		return target;
@@ -1066,6 +1067,88 @@ static int workspace_switch_current_offset(struct sway_workspace *ws) {
 	return get_switch_animation_offset(ws);
 }
 
+// Sanity cap on filmstrip participants; longer jumps fall back to a
+// direct two-workspace slide.
+#define WORKSPACE_STRIP_MAX 32
+
+// Total slide time for a jump spanning `steps` workspaces. When
+// workspace_anim_step_ms is 0 the fixed workspace_anim_duration_ms is used.
+static float workspace_strip_total_ms(int steps) {
+	if (steps < 1) {
+		steps = 1;
+	}
+	if (config->workspace_anim_step_ms > 0.0f) {
+		float total = config->workspace_anim_step_ms * steps;
+		if (total > 5000.0f) {
+			total = 5000.0f;
+		}
+		return total;
+	}
+	return config->workspace_anim_duration_ms;
+}
+
+// Collects filmstrip participants between from and to (inclusive) in output
+// order into `out`. Endpoints are always included (blank slide-in); middle
+// workspaces are skipped when empty. Returns the count, or 0 when a strip
+// is not possible (fall back to a direct two-workspace slide).
+static int collect_strip_workspaces(struct sway_workspace *from,
+		struct sway_workspace *to, struct sway_workspace **out, int cap) {
+	struct sway_output *output = from->output;
+	if (!output || !output->workspaces) {
+		return 0;
+	}
+	int from_idx = list_find(output->workspaces, from);
+	int to_idx = list_find(output->workspaces, to);
+	if (from_idx < 0 || to_idx < 0 || from_idx == to_idx) {
+		return 0;
+	}
+	if (abs(to_idx - from_idx) + 1 > cap) {
+		return 0;
+	}
+	int lo = from_idx < to_idx ? from_idx : to_idx;
+	int hi = from_idx < to_idx ? to_idx : from_idx;
+	int n = 0;
+	for (int i = lo; i <= hi; ++i) {
+		struct sway_workspace *ws = output->workspaces->items[i];
+		if (ws->fullscreen) {
+			return 0;
+		}
+		if (ws != from && ws != to && workspace_is_empty(ws)) {
+			continue;
+		}
+		if (n >= cap) {
+			return 0;
+		}
+		out[n++] = ws;
+	}
+	if (n < 2) {
+		return 0;
+	}
+	return n;
+}
+
+static void workspace_switch_animate_set(struct sway_workspace **workspaces,
+		int *start_x, int *end_x, int n, float duration_scale) {
+	for (int i = 0; i < n; ++i) {
+		struct sway_workspace *ws = workspaces[i];
+		struct animation *animation = ws->switch_animation_state.animation;
+		if (!animation) {
+			continue;
+		}
+		if (animation->initialized) {
+			animation->initialized = false;
+			wl_list_remove(&animation->link);
+		}
+		ws->switch_animation_state.from_x = start_x[i];
+		ws->switch_animation_state.target_x = end_x[i];
+		ws->switch_animation_state.target_x_initialized = true;
+		ws->switch_animation_state.active = true;
+		animation->duration_scale = duration_scale;
+		add_animation(animation);
+	}
+	start_animations(&animation_update_callback);
+}
+
 void workspace_switch_animation_begin_dir(struct sway_workspace *from,
 		struct sway_workspace *to, int direction) {
 	if (!from || !to || from == to || !config->workspace_switch_anim) {
@@ -1083,23 +1166,99 @@ void workspace_switch_animation_begin_dir(struct sway_workspace *from,
 	}
 
 	// Explicit direction wins, then the one-shot hint, then auto-infer.
-	bool slide_right;
+	int explicit_dir = 0;
 	if (direction > 0) {
-		slide_right = true;
+		explicit_dir = 1;
 	} else if (direction < 0) {
-		slide_right = false;
-	} else if (pending_switch_direction > 0) {
+		explicit_dir = -1;
+	} else {
+		explicit_dir = pending_switch_direction;
+	}
+	pending_switch_direction = 0;
+
+	bool slide_right;
+	if (explicit_dir > 0) {
 		slide_right = true;
-	} else if (pending_switch_direction < 0) {
+	} else if (explicit_dir < 0) {
 		slide_right = false;
 	} else {
 		slide_right = workspace_switch_slide_right(from, to);
 	}
-	pending_switch_direction = 0;
 
 	int width = from->output->usable_area.width;
+	struct sway_output *output = from->output;
 
-	// Start from the current on-screen position so rapid switches don't jump.
+	// Filmstrip: slide through every non-empty workspace in between so a
+	// 1 -> 3 jump visibly passes workspace 2. When an explicit direction
+	// contradicts the output order (e.g. wrap-around via `workspace next`),
+	// fall back to a direct two-workspace slide in the hinted direction.
+	bool try_strip = true;
+	if (explicit_dir != 0 && output->workspaces) {
+		int from_idx = list_find(output->workspaces, from);
+		int to_idx = list_find(output->workspaces, to);
+		if (from_idx >= 0 && to_idx >= 0) {
+			int index_dir = (to_idx > from_idx) ? 1 : -1;
+			if (index_dir != explicit_dir) {
+				try_strip = false;
+			}
+		}
+	}
+	struct sway_workspace *strip[WORKSPACE_STRIP_MAX];
+	int n = try_strip ? collect_strip_workspaces(from, to, strip,
+		WORKSPACE_STRIP_MAX) : 0;
+	if (n >= 2) {
+		int from_pos = -1, to_pos = -1;
+		for (int i = 0; i < n; ++i) {
+			if (strip[i] == from) {
+				from_pos = i;
+			}
+			if (strip[i] == to) {
+				to_pos = i;
+			}
+		}
+		if (from_pos >= 0 && to_pos >= 0) {
+			// Hide stale strip leftovers from an interrupted jump.
+			for (int i = 0; i < output->workspaces->length; ++i) {
+				struct sway_workspace *ws = output->workspaces->items[i];
+				if (!ws->switch_animation_state.active) {
+					continue;
+				}
+				bool member = false;
+				for (int k = 0; k < n; ++k) {
+					if (strip[k] == ws) {
+						member = true;
+						break;
+					}
+				}
+				if (!member) {
+					stop_workspace_switch_animation(ws);
+				}
+			}
+			float total = workspace_strip_total_ms(n - 1);
+			float duration_scale =
+				config->animation_duration_ms > 0.0f ?
+				total / config->animation_duration_ms : 1.0f;
+			int starts[WORKSPACE_STRIP_MAX];
+			int ends[WORKSPACE_STRIP_MAX];
+			for (int i = 0; i < n; ++i) {
+				struct sway_workspace *ws = strip[i];
+				starts[i] = (i - from_pos) * width;
+				ends[i] = (i - to_pos) * width;
+				// Resume from the current on-screen position when
+				// interrupting an in-flight animation.
+				if (ws->switch_animation_state.active &&
+						ws->switch_animation_state.animation &&
+						ws->switch_animation_state.animation->initialized) {
+					starts[i] = workspace_switch_current_offset(ws);
+				}
+			}
+			workspace_switch_animate_set(strip, starts, ends, n,
+				duration_scale);
+			return;
+		}
+	}
+
+	// Direct two-workspace slide.
 	int from_start = workspace_switch_current_offset(from);
 	int to_start;
 	if (to->switch_animation_state.active &&
@@ -1114,28 +1273,10 @@ void workspace_switch_animation_begin_dir(struct sway_workspace *from,
 	struct sway_workspace *targets[2] = { from, to };
 	int start_x[2] = { from_start, to_start };
 	int end_x[2] = { from_end, 0 };
-
-	for (int i = 0; i < 2; ++i) {
-		struct sway_workspace *ws = targets[i];
-		struct animation *animation = ws->switch_animation_state.animation;
-		if (!animation) {
-			continue;
-		}
-		if (animation->initialized) {
-			animation->initialized = false;
-			wl_list_remove(&animation->link);
-		}
-		ws->switch_animation_state.from_x = start_x[i];
-		ws->switch_animation_state.target_x = end_x[i];
-		ws->switch_animation_state.target_x_initialized = true;
-		ws->switch_animation_state.active = true;
-		animation->duration_scale =
-			config->animation_duration_ms > 0.0f ?
-			config->workspace_anim_duration_ms / config->animation_duration_ms :
-			1.0f;
-		add_animation(animation);
-	}
-	start_animations(&animation_update_callback);
+	float duration_scale =
+		config->animation_duration_ms > 0.0f ?
+		workspace_strip_total_ms(1) / config->animation_duration_ms : 1.0f;
+	workspace_switch_animate_set(targets, start_x, end_x, 2, duration_scale);
 }
 
 void workspace_switch_animation_begin(struct sway_workspace *from,

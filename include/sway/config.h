@@ -509,6 +509,7 @@ struct sway_config {
 	double window_resize_curve_c2y;
 	bool workspace_switch_anim;
 	float workspace_anim_duration_ms;
+	float workspace_anim_step_ms;
 	// Workspace slide easing curve control points.
 	double workspace_switch_curve_c1x;
 	double workspace_switch_curve_c1y;
