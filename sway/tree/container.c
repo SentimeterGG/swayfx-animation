@@ -268,6 +268,12 @@ float container_get_effective_alpha(struct sway_container *con) {
 		float fade_progress =
 			con->animation_state.open_animation->multiplier;
 		alpha *= 1.0f - MIN(fade_progress, 1.0f);
+	} else if (con->animation_state.open_animation &&
+			!con->animation_state.close_running &&
+			con->animation_state.open_animation->delay > 0.0f) {
+		// Open delay phase: keep new window hidden until sibling
+		// resize finishes, then normal open scale animation runs.
+		return 0.0f;
 	}
 
 	return alpha;

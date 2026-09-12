@@ -42,7 +42,6 @@ struct sway_transaction_instruction {
 };
 
 static list_t *closing_containers;
-static const float close_animation_duration_scale = 0.8f;
 
 static void animation_update_callback(void);
 static bool container_start_close_animation(struct sway_container *con);
@@ -526,6 +525,19 @@ static void arrange_container(struct sway_container *con,
 		}
 
 		wlr_scene_node_set_position(&con->scene_tree->node, x, y);
+	}
+
+	// Open delay phase: resize runs first, new window stays hidden.
+	// The animation timer holds multiplier at 0 while delay > 0, and
+	// container_get_effective_alpha() returns 0, but we also keep the
+	// whole scene tree disabled so borders/shadow don't flash.
+	if (con->animation_state.open_animation &&
+			!con->animation_state.close_running &&
+			con->animation_state.open_animation->delay > 0.0f) {
+		con->animation_state.current_width = width;
+		con->animation_state.current_height = height;
+		wlr_scene_node_set_enabled(&con->scene_tree->node, false);
+		return;
 	}
 	con->animation_state.current_width = width;
 	con->animation_state.current_height = height;
@@ -1280,8 +1292,10 @@ void transaction_arrange_closing_containers(void) {
 }
 
 static bool container_start_close_animation(struct sway_container *con) {
-	if (!config->animation_duration_ms || !con->view ||
-			!con->view->saved_surface_tree || con->animation_state.close_running) {
+	if (!config->animation_duration_ms ||
+			animation_kind_duration_ms(ANIMATION_KIND_CLOSE) <= 0.0f ||
+			!con->view || !con->view->saved_surface_tree ||
+			con->animation_state.close_running) {
 		return false;
 	}
 
@@ -1312,8 +1326,10 @@ static bool container_start_close_animation(struct sway_container *con) {
 	}
 	list_add(closing_containers, con);
 
+	con->animation_state.open_animation->kind = ANIMATION_KIND_CLOSE;
 	con->animation_state.open_animation->duration_scale =
-		close_animation_duration_scale;
+		animation_scale_for_kind(ANIMATION_KIND_CLOSE);
+	con->animation_state.open_animation->delay = 0.0f;
 	add_animation(con->animation_state.open_animation);
 
 	con->animation_state.close_timer = wl_event_loop_add_timer(
@@ -1324,7 +1340,7 @@ static bool container_start_close_animation(struct sway_container *con) {
 	}
 
 	float close_duration_ms =
-		config->animation_duration_ms * close_animation_duration_scale;
+		animation_kind_duration_ms(ANIMATION_KIND_CLOSE);
 	int delay_ms = close_duration_ms > 1.0f ?
 		(int)close_duration_ms : 1;
 	wl_event_source_timer_update(con->animation_state.close_timer, delay_ms);
@@ -1375,21 +1391,31 @@ static void transaction_apply(struct sway_transaction *transaction) {
 			struct sway_container *con = node->sway_container;
 			if (!con->node.destroying &&
 					should_con_new_animation(con, &instruction->container_state)) {
-				should_start_new_animation = true;
-
 				// TODO: reset animation state on going to scratchpad
 				// skip newly spawned windows (for now!)
 				if (con->view && con->current.workspace) {
-					int lx, ly;
-					wlr_scene_node_coords(&con->scene_tree->node, &lx, &ly);
-					int scroll_x_adjustment =
-						get_container_scroll_x_adjustment(con);
-					con->animation_state.delta_x =
-						lx - (con->pending.x + scroll_x_adjustment);
-					con->animation_state.delta_y = ly - con->pending.y;
-					con->animation_state.delta_width = con->animation_state.current_width - con->pending.width;
-					con->animation_state.delta_height = con->animation_state.current_height - con->pending.height;
-					add_animation(con->animation_state.animation);
+					if (config->animation_duration_ms > 0.0f &&
+							animation_kind_duration_ms(
+								ANIMATION_KIND_RESIZE) > 0.0f) {
+						should_start_new_animation = true;
+
+						int lx, ly;
+						wlr_scene_node_coords(&con->scene_tree->node, &lx, &ly);
+						int scroll_x_adjustment =
+							get_container_scroll_x_adjustment(con);
+						con->animation_state.delta_x =
+							lx - (con->pending.x + scroll_x_adjustment);
+						con->animation_state.delta_y = ly - con->pending.y;
+						con->animation_state.delta_width = con->animation_state.current_width - con->pending.width;
+						con->animation_state.delta_height = con->animation_state.current_height - con->pending.height;
+						con->animation_state.animation->kind =
+							ANIMATION_KIND_RESIZE;
+						con->animation_state.animation->duration_scale =
+							animation_scale_for_kind(ANIMATION_KIND_RESIZE);
+						add_animation(con->animation_state.animation);
+					}
+				} else {
+					should_start_new_animation = true;
 				}
 			}
 			apply_container_state(con, &instruction->container_state);

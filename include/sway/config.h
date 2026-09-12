@@ -486,6 +486,27 @@ enum xwayland_mode {
  */
 struct sway_config {
 	float animation_duration_ms;
+	float window_open_animation_delay_ms;
+	// Per-type durations in ms. Negative means "follow
+	// animation_duration_ms" (close follows at 0.8x). See
+	// animation_kind_duration_ms(). User values are clamped to 0-5000.
+	float window_open_duration_ms;
+	float window_close_duration_ms;
+	float window_resize_duration_ms;
+	// Per-animation easing curves (cubic-bezier control points).
+	// Defaults approximate ease_out_cubic.
+	double window_open_curve_c1x;
+	double window_open_curve_c1y;
+	double window_open_curve_c2x;
+	double window_open_curve_c2y;
+	double window_close_curve_c1x;
+	double window_close_curve_c1y;
+	double window_close_curve_c2x;
+	double window_close_curve_c2y;
+	double window_resize_curve_c1x;
+	double window_resize_curve_c1y;
+	double window_resize_curve_c2x;
+	double window_resize_curve_c2y;
 	bool workspace_switch_anim;
 	float workspace_anim_duration_ms;
 	// Workspace slide easing curve control points.

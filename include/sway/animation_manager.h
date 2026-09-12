@@ -6,11 +6,19 @@
 
 struct sway_server;
 
+enum animation_kind {
+	ANIMATION_KIND_RESIZE = 0,
+	ANIMATION_KIND_OPEN = 1,
+	ANIMATION_KIND_CLOSE = 2,
+};
+
 struct animation {
 	struct wl_list link;
 	float progress;
 	float multiplier;
 	float duration_scale;
+	float delay;
+	enum animation_kind kind;
 	bool initialized;
 };
 
@@ -23,6 +31,10 @@ void refresh_animation_manager_timing();
 void add_animation(struct animation *animation);
 
 void start_animations(void (update_callback)(void));
+
+float animation_kind_duration_ms(enum animation_kind kind);
+
+float animation_scale_for_kind(enum animation_kind kind);
 
 float get_animated_value(float from, float to, struct animation animation);
 

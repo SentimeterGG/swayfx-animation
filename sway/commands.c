@@ -136,6 +136,13 @@ static const struct cmd_handler handlers[] = {
 	{ "unbindgesture", cmd_unbindgesture },
 	{ "unbindswitch", cmd_unbindswitch },
 	{ "unbindsym", cmd_unbindsym },
+	{ "window_close_curve", cmd_window_close_curve },
+	{ "window_close_duration_ms", cmd_window_close_duration_ms },
+	{ "window_open_animation_delay", cmd_window_open_animation_delay },
+	{ "window_open_curve", cmd_window_open_curve },
+	{ "window_open_duration_ms", cmd_window_open_duration_ms },
+	{ "window_resize_curve", cmd_window_resize_curve },
+	{ "window_resize_duration_ms", cmd_window_resize_duration_ms },
 	{ "workspace", cmd_workspace },
 	{ "workspace_auto_back_and_forth", cmd_ws_auto_back_and_forth },
 };

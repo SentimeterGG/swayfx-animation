@@ -438,8 +438,47 @@ The following commands may be used either in the configuration file or at
 runtime.
 
 animation_duration_ms <value>
-	Determines the duration of the animation applied to opening and closing
-	windows, between 0 (no animation) and 5000 (5 seconds).
+	Master timing for window animations, between 0 (all window
+	animations disabled) and 5000 (5 seconds). When no per-type
+	duration is set, open and resize animations use this value and
+	close animations use 0.8x this value. (Default 90.)
+
+window_open_animation_delay <value>
+	Holds a new window hidden for <value> milliseconds before its open
+	animation runs, so sibling resize finishes first. Set to 0 to open
+	immediately. Ignored when the target workspace is empty.
+	Between 0 and 5000 (default 90).
+
+window_open_duration_ms <value>
+	Duration of the window open animation in milliseconds, between 0
+	(instant) and 5000. Unset by default: follows
+	animation_duration_ms. Requires animation_duration_ms to be
+	non-zero.
+
+window_close_duration_ms <value>
+	Duration of the window close animation in milliseconds, between 0
+	(instant) and 5000. Unset by default: follows 0.8x
+	animation_duration_ms. Requires animation_duration_ms to be
+	non-zero.
+
+window_resize_duration_ms <value>
+	Duration of window move/resize animations in milliseconds, between 0
+	(instant) and 5000. Unset by default: follows
+	animation_duration_ms. Requires animation_duration_ms to be
+	non-zero.
+
+window_open_curve <preset|cubic-bezier(a, b, c, d)>
+	Easing curve for the window open animation. Presets: linear, ease,
+	ease-in, ease-out, ease-in-out, ease-out-cubic (default),
+	menu_decel. Example: window_open_curve cubic-bezier(0.215, 0.61, 0.355, 1).
+
+window_close_curve <preset|cubic-bezier(a, b, c, d)>
+	Easing curve for the window close animation. Same presets as
+	window_open_curve. (Default ease-out-cubic.)
+
+window_resize_curve <preset|cubic-bezier(a, b, c, d)>
+	Easing curve for window move/resize animations. Same presets as
+	window_open_curve. (Default ease-out-cubic.)
 
 *assign* <criteria> [→] [workspace] [number] <workspace>
 	Assigns windows matching _criteria_ (see *CRITERIA* for details) to

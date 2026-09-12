@@ -952,10 +952,6 @@ void view_map(struct sway_view *view, struct wlr_surface *wlr_surface,
 	view->surface = wlr_surface;
 	view_populate_pid(view);
 	view->container = container_create(view);
-	if (config->animation_duration_ms > 0.0f) {
-		add_animation(view->container->animation_state.open_animation);
-		start_animations(&view_map_animation_update);
-	}
 
 	if (view->ctx == NULL) {
 		struct launcher_ctx *ctx = launcher_ctx_find_pid(view->pid);
@@ -974,6 +970,34 @@ void view_map(struct sway_view *view, struct wlr_surface *wlr_surface,
 	}
 	if (!ws) {
 		ws = select_workspace(view);
+	}
+
+	if (config->animation_duration_ms > 0.0f &&
+			animation_kind_duration_ms(ANIMATION_KIND_OPEN) > 0.0f) {
+		// Configurable open delay so sibling resize finishes first.
+		// Skipped when the target workspace is empty. Close path reuses
+		// the same object but explicitly clears delay and switches kind.
+		float delay_ms = config->window_open_animation_delay_ms;
+		if (!ws || workspace_is_empty(ws)) {
+			delay_ms = 0.0f;
+		}
+		float delay = 0.0f;
+		if (delay_ms > 0.0f) {
+			delay = delay_ms /
+				animation_kind_duration_ms(ANIMATION_KIND_OPEN);
+		}
+		struct animation *open_anim =
+			view->container->animation_state.open_animation;
+		open_anim->kind = ANIMATION_KIND_OPEN;
+		open_anim->duration_scale =
+			animation_scale_for_kind(ANIMATION_KIND_OPEN);
+		open_anim->delay = delay;
+		add_animation(open_anim);
+		if (delay > 0.0f) {
+			wlr_scene_node_set_enabled(
+				&view->container->scene_tree->node, false);
+		}
+		start_animations(&view_map_animation_update);
 	}
 
 	if (ws && ws->output) {
