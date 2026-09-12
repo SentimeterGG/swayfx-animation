@@ -27,10 +27,20 @@ SwayFX expands Sway's feature set to include eye-candy that many users have been
 </p>
 
 ### Animations
-Control the duration of window movement and resizing animations.
-- `animation_duration_ms <value>`: Duration in milliseconds (0-5000, default: 90).
+Control the duration and easing of window open, close, and move/resize animations.
 
-New windows use pop/expand animations by default when opening and closing, using the same animation timing.
+- `animation_duration_ms <value>`: Master timing in milliseconds (0-5000, default: 90). Set to 0 to disable all window animations. When no per-type duration is set, open and resize use this value and close uses 0.8x this value.
+- `window_open_duration_ms <value>`: Open animation duration in milliseconds (0-5000, 0 = instant). Unset by default: follows `animation_duration_ms`.
+- `window_close_duration_ms <value>`: Close animation duration in milliseconds (0-5000, 0 = instant). Unset by default: follows 0.8x `animation_duration_ms`.
+- `window_resize_duration_ms <value>`: Move/resize animation duration in milliseconds (0-5000, 0 = instant). Unset by default: follows `animation_duration_ms`.
+- `window_open_animation_delay <value>`: Holds a new window hidden for `<value>` milliseconds before its open animation runs, so sibling resize finishes first (0-5000, default: 90). Set to 0 to open immediately. Ignored when the target workspace is empty.
+- `window_open_curve <preset|cubic-bezier(a, b, c, d)>`: Easing for the open animation.
+- `window_close_curve <preset|cubic-bezier(a, b, c, d)>`: Easing for the close animation.
+- `window_resize_curve <preset|cubic-bezier(a, b, c, d)>`: Easing for move/resize animations.
+  - Curve presets: `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`, `ease-out-cubic` (default), `menu_decel`.
+  - Example: `window_open_curve cubic-bezier(0.215, 0.61, 0.355, 1)`.
+
+New windows use pop/expand animations by default when opening and closing.
 
 Default config convenience:
 - `Mod+m maximize`: Maximize the focused window to the current workspace without entering fullscreen.
