@@ -4,6 +4,7 @@
 #include <strings.h>
 #include "sway/commands.h"
 #include "sway/config.h"
+#include "sway/desktop/transaction.h"
 #include "sway/input/seat.h"
 #include "sway/tree/workspace.h"
 #include "list.h"
@@ -211,6 +212,13 @@ struct cmd_results *cmd_workspace(int argc, char **argv) {
 				strcasecmp(argv[0], "next_on_output") == 0 ||
 				strcasecmp(argv[0], "prev_on_output") == 0 ||
 				strcasecmp(argv[0], "current") == 0) {
+			if (strcasecmp(argv[0], "next") == 0 ||
+					strcasecmp(argv[0], "next_on_output") == 0) {
+				workspace_switch_animation_hint(1);
+			} else if (strcasecmp(argv[0], "prev") == 0 ||
+					strcasecmp(argv[0], "prev_on_output") == 0) {
+				workspace_switch_animation_hint(-1);
+			}
 			ws = workspace_by_name(argv[0]);
 		} else if (strcasecmp(argv[0], "back_and_forth") == 0) {
 			if (!seat->prev_workspace_name) {
@@ -231,7 +239,11 @@ struct cmd_results *cmd_workspace(int argc, char **argv) {
 			}
 		}
 		if (!ws) {
+			workspace_switch_animation_hint(0);
 			return cmd_results_new(CMD_FAILURE, "No workspace to switch to");
+		}
+		if (seat && ws == seat_get_focused_workspace(seat)) {
+			workspace_switch_animation_hint(0);
 		}
 		workspace_switch(ws);
 		seat_consider_warp_to_focus(seat);

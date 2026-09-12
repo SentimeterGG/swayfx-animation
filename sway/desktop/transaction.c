@@ -1007,27 +1007,113 @@ static int workspace_switch_num(const char *name) {
 	return (int)num;
 }
 
-void workspace_switch_animation_begin(struct sway_workspace *from,
+// Explicit directional hint set by `workspace next/prev` before the focus
+// change reaches seat.c. Consumed once by the next auto-direction animation.
+static int pending_switch_direction = 0;
+
+void workspace_switch_animation_hint(int direction) {
+	if (direction > 0) {
+		pending_switch_direction = 1;
+	} else if (direction < 0) {
+		pending_switch_direction = -1;
+	} else {
+		pending_switch_direction = 0;
+	}
+}
+
+// Slide right when moving forward, left when moving back:
+// 1. numeric workspaces compare by number,
+// 2. numbered vs named: named sorts after numbered (matches output_sort_workspaces),
+// 3. otherwise compare position in the output's sorted workspace list,
+// 4. final fallback compares names so the result is deterministic.
+static bool workspace_switch_slide_right(struct sway_workspace *from,
 		struct sway_workspace *to) {
+	int from_n = workspace_switch_num(from->name);
+	int to_n = workspace_switch_num(to->name);
+	if (from_n >= 0 && to_n >= 0) {
+		if (to_n != from_n) {
+			return to_n > from_n;
+		}
+		// Same numeric prefix (e.g. "1:a" vs "1:b"): fall through to order.
+	} else if (from_n >= 0 && to_n < 0) {
+		return true;
+	} else if (from_n < 0 && to_n >= 0) {
+		return false;
+	}
+
+	if (from->output && from->output == to->output &&
+			from->output->workspaces) {
+		int from_idx = list_find(from->output->workspaces, from);
+		int to_idx = list_find(from->output->workspaces, to);
+		if (from_idx >= 0 && to_idx >= 0 && from_idx != to_idx) {
+			return to_idx > from_idx;
+		}
+	}
+
+	return strcmp(to->name, from->name) > 0;
+}
+
+static int workspace_switch_current_offset(struct sway_workspace *ws) {
+	if (!ws->switch_animation_state.active) {
+		return 0;
+	}
+	struct animation *animation = ws->switch_animation_state.animation;
+	if (!animation || !animation->initialized ||
+			!config->workspace_switch_anim) {
+		return ws->switch_animation_state.active ?
+			ws->switch_animation_state.from_x : 0;
+	}
+	return get_switch_animation_offset(ws);
+}
+
+void workspace_switch_animation_begin_dir(struct sway_workspace *from,
+		struct sway_workspace *to, int direction) {
 	if (!from || !to || from == to || !config->workspace_switch_anim) {
+		pending_switch_direction = 0;
 		return;
 	}
 	if (!from->output || from->output != to->output ||
 			!from->output->wlr_output) {
+		pending_switch_direction = 0;
 		return;
 	}
 	if (from->fullscreen || to->fullscreen) {
+		pending_switch_direction = 0;
 		return;
 	}
 
-	// Slide right to higher workspaces, left to lower ones.
-	bool slide_right =
-		workspace_switch_num(to->name) > workspace_switch_num(from->name);
+	// Explicit direction wins, then the one-shot hint, then auto-infer.
+	bool slide_right;
+	if (direction > 0) {
+		slide_right = true;
+	} else if (direction < 0) {
+		slide_right = false;
+	} else if (pending_switch_direction > 0) {
+		slide_right = true;
+	} else if (pending_switch_direction < 0) {
+		slide_right = false;
+	} else {
+		slide_right = workspace_switch_slide_right(from, to);
+	}
+	pending_switch_direction = 0;
+
 	int width = from->output->usable_area.width;
 
+	// Start from the current on-screen position so rapid switches don't jump.
+	int from_start = workspace_switch_current_offset(from);
+	int to_start;
+	if (to->switch_animation_state.active &&
+			to->switch_animation_state.animation &&
+			to->switch_animation_state.animation->initialized) {
+		to_start = workspace_switch_current_offset(to);
+	} else {
+		to_start = slide_right ? width : -width;
+	}
+	int from_end = slide_right ? -width : width;
+
 	struct sway_workspace *targets[2] = { from, to };
-	int start_x[2] = { 0, slide_right ? width : -width };
-	int end_x[2] = { slide_right ? -width : width, 0 };
+	int start_x[2] = { from_start, to_start };
+	int end_x[2] = { from_end, 0 };
 
 	for (int i = 0; i < 2; ++i) {
 		struct sway_workspace *ws = targets[i];
@@ -1050,6 +1136,11 @@ void workspace_switch_animation_begin(struct sway_workspace *from,
 		add_animation(animation);
 	}
 	start_animations(&animation_update_callback);
+}
+
+void workspace_switch_animation_begin(struct sway_workspace *from,
+		struct sway_workspace *to) {
+	workspace_switch_animation_begin_dir(from, to, 0);
 }
 
 static void arrange_workspace_tiling(struct sway_workspace *ws,

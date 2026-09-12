@@ -68,7 +68,15 @@ void transaction_arrange_closing_containers(void);
 void transaction_close_animation_cancel(struct sway_container *con);
 
 // Outgoing workspace slides off one edge, incoming slides in from the other.
+// Direction: >0 always slides right, <0 always slides left, 0 auto-infers
+// from workspace numbers / output order. Positive means the incoming
+// workspace comes from the right (i.e. moving forward).
 void workspace_switch_animation_begin(struct sway_workspace *from,
 		struct sway_workspace *to);
+void workspace_switch_animation_begin_dir(struct sway_workspace *from,
+		struct sway_workspace *to, int direction);
+// Hint consumed by the next auto (direction==0) animation. Used so
+// `workspace next` keeps sliding right even when wrapping around.
+void workspace_switch_animation_hint(int direction);
 
 #endif
