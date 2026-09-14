@@ -10,6 +10,7 @@ enum animation_kind {
 	ANIMATION_KIND_RESIZE = 0,
 	ANIMATION_KIND_OPEN = 1,
 	ANIMATION_KIND_CLOSE = 2,
+	ANIMATION_KIND_FULLSCREEN = 3,
 };
 
 struct animation {

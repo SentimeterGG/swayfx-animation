@@ -255,6 +255,8 @@ sway_cmd cmd_window_close_curve;
 sway_cmd cmd_window_close_duration_ms;
 sway_cmd cmd_window_resize_curve;
 sway_cmd cmd_window_resize_duration_ms;
+sway_cmd cmd_window_fullscreen_curve;
+sway_cmd cmd_window_fullscreen_duration_ms;
 sway_cmd cmd_workspace;
 sway_cmd cmd_workspace_layout;
 sway_cmd cmd_ws_auto_back_and_forth;

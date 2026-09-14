@@ -76,6 +76,13 @@ static float ease_animation(float progress, enum animation_kind kind) {
 			config->window_close_curve_c1x, config->window_close_curve_c1y,
 			config->window_close_curve_c2x, config->window_close_curve_c2y);
 	case ANIMATION_KIND_RESIZE:
+		return window_bezier_ease(progress,
+			config->window_resize_curve_c1x, config->window_resize_curve_c1y,
+			config->window_resize_curve_c2x, config->window_resize_curve_c2y);
+	case ANIMATION_KIND_FULLSCREEN:
+		return window_bezier_ease(progress,
+			config->window_fullscreen_curve_c1x, config->window_fullscreen_curve_c1y,
+			config->window_fullscreen_curve_c2x, config->window_fullscreen_curve_c2y);
 	default:
 		return window_bezier_ease(progress,
 			config->window_resize_curve_c1x, config->window_resize_curve_c1y,
@@ -176,6 +183,11 @@ float animation_kind_duration_ms(enum animation_kind kind) {
 		return config->window_close_duration_ms >= 0.0f ?
 			config->window_close_duration_ms : base * 0.8f;
 	case ANIMATION_KIND_RESIZE:
+		return config->window_resize_duration_ms >= 0.0f ?
+			config->window_resize_duration_ms : base;
+	case ANIMATION_KIND_FULLSCREEN:
+		return config->window_fullscreen_duration_ms >= 0.0f ?
+			config->window_fullscreen_duration_ms : base;
 	default:
 		return config->window_resize_duration_ms >= 0.0f ?
 			config->window_resize_duration_ms : base;

@@ -490,20 +490,32 @@ static void arrange_container(struct sway_container *con,
 
 	if (con->view) {
 		// reuse the position from arrange_child. A bit hacky, but this reduces diff size vs upstream.
-		int x = get_animated_value(con->scene_tree->node.x + con->animation_state.delta_x,
-			con->scene_tree->node.x, *con->animation_state.animation);
-		int y = get_animated_value(con->scene_tree->node.y + con->animation_state.delta_y,
-			con->scene_tree->node.y, *con->animation_state.animation);
+		// Fullscreen exit zooms like the open animation instead of
+		// lerping geometry like a resize, so skip the delta lerp here
+		// and apply the zoom scale below.
+		struct animation *fs_anim = con->animation_state.animation;
+		bool fs_zoom = fs_anim && fs_anim->initialized &&
+			fs_anim->kind == ANIMATION_KIND_FULLSCREEN &&
+			config->animation_duration_ms > 0.0f &&
+			animation_kind_duration_ms(ANIMATION_KIND_FULLSCREEN) > 0.0f;
+		int x = con->scene_tree->node.x;
+		int y = con->scene_tree->node.y;
+		if (!fs_zoom) {
+			x = get_animated_value(con->scene_tree->node.x + con->animation_state.delta_x,
+				con->scene_tree->node.x, *con->animation_state.animation);
+			y = get_animated_value(con->scene_tree->node.y + con->animation_state.delta_y,
+				con->scene_tree->node.y, *con->animation_state.animation);
 
-		width = get_animated_value(width + con->animation_state.delta_width, width,
-			*con->animation_state.animation);
-		if (width <= 0) {
-			return;
-		}
-		height = get_animated_value(height + con->animation_state.delta_height, height,
-			*con->animation_state.animation);
-		if (height <= 0) {
-			return;
+			width = get_animated_value(width + con->animation_state.delta_width, width,
+				*con->animation_state.animation);
+			if (width <= 0) {
+				return;
+			}
+			height = get_animated_value(height + con->animation_state.delta_height, height,
+				*con->animation_state.animation);
+			if (height <= 0) {
+				return;
+			}
 		}
 
 		if (con->animation_state.open_animation) {
@@ -520,6 +532,16 @@ static void arrange_container(struct sway_container *con,
 					*con->animation_state.open_animation);
 			width = MAX((int)(target_width * open_scale), 1);
 			height = MAX((int)(target_height * open_scale), 1);
+			x += (target_width - width) / 2;
+			y += (target_height - height) / 2;
+		}
+
+		if (fs_zoom) {
+			float fs_scale = get_animated_value(0.88f, 1.0f, *fs_anim);
+			int target_width = width;
+			int target_height = height;
+			width = MAX((int)(target_width * fs_scale), 1);
+			height = MAX((int)(target_height * fs_scale), 1);
 			x += (target_width - width) / 2;
 			y += (target_height - height) / 2;
 		}
@@ -821,6 +843,26 @@ static int container_get_gaps(struct sway_container *con) {
 static void arrange_fullscreen(struct wlr_scene_tree *tree,
 		struct sway_container *fs, struct sway_workspace *ws,
 		int width, int height) {
+	// Zoom like the window open animation (scale 0.88 -> 1.0, centered)
+	// for fullscreen enter (and output resizes while fullscreen). Exit
+	// is handled by the normal tiling path in arrange_container(), which
+	// applies the same zoom via animation_state.
+	struct animation *anim = fs->animation_state.animation;
+	bool animating = anim && anim->initialized &&
+		anim->kind == ANIMATION_KIND_FULLSCREEN &&
+		config->animation_duration_ms > 0.0f &&
+		animation_kind_duration_ms(ANIMATION_KIND_FULLSCREEN) > 0.0f;
+
+	int anim_x = 0, anim_y = 0;
+	if (animating) {
+		// arrange_container() applies the 0.88 -> 1.0 zoom internally
+		// when the FULLSCREEN animation is active (see arrange_container),
+		// laying out content at the scaled size. Center the node here.
+		arrange_container(fs, width, height, true, 0);
+		anim_x = (width - fs->animation_state.current_width) / 2;
+		anim_y = (height - fs->animation_state.current_height) / 2;
+	}
+
 	struct wlr_scene_node *fs_node;
 	if (fs->view) {
 		fs_node = &fs->view->scene_tree->node;
@@ -831,13 +873,15 @@ static void arrange_fullscreen(struct wlr_scene_tree *tree,
 				(void*)fs->view, (void*)fs->view->surface, (void*)tree);
 	} else {
 		fs_node = &fs->scene_tree->node;
-		arrange_container(fs, width, height, true, container_get_gaps(fs));
+		if (!animating) {
+			arrange_container(fs, width, height, true, container_get_gaps(fs));
+		}
 		sway_log(SWAY_DEBUG, "arrange_fullscreen: container=%p (no view) reparent to fullscreen layer", (void*)fs);
 	}
 
 	wlr_scene_node_reparent(fs_node, tree);
 	wlr_scene_node_lower_to_bottom(fs_node);
-	wlr_scene_node_set_position(fs_node, 0, 0);
+	wlr_scene_node_set_position(fs_node, anim_x, anim_y);
 }
 
 static int get_switch_animation_offset(struct sway_workspace *ws);
@@ -1621,14 +1665,20 @@ static void transaction_apply(struct sway_transaction *transaction) {
 			break;
 		case N_CONTAINER:
 			struct sway_container *con = node->sway_container;
-			if (!con->node.destroying &&
-					should_con_new_animation(con, &instruction->container_state)) {
+			bool geom_changed = should_con_new_animation(con,
+				&instruction->container_state);
+			bool fs_changed = con->current.fullscreen_mode !=
+				instruction->container_state.fullscreen_mode;
+			bool fs_active = con->current.fullscreen_mode != FULLSCREEN_NONE ||
+				instruction->container_state.fullscreen_mode != FULLSCREEN_NONE;
+			if (!con->node.destroying && (geom_changed || fs_changed)) {
 				// TODO: reset animation state on going to scratchpad
 				// skip newly spawned windows (for now!)
 				if (con->view && con->current.workspace) {
+					enum animation_kind kind = fs_active ?
+						ANIMATION_KIND_FULLSCREEN : ANIMATION_KIND_RESIZE;
 					if (config->animation_duration_ms > 0.0f &&
-							animation_kind_duration_ms(
-								ANIMATION_KIND_RESIZE) > 0.0f) {
+							animation_kind_duration_ms(kind) > 0.0f) {
 						should_start_new_animation = true;
 
 						int lx, ly;
@@ -1640,10 +1690,9 @@ static void transaction_apply(struct sway_transaction *transaction) {
 						con->animation_state.delta_y = ly - con->pending.y;
 						con->animation_state.delta_width = con->animation_state.current_width - con->pending.width;
 						con->animation_state.delta_height = con->animation_state.current_height - con->pending.height;
-						con->animation_state.animation->kind =
-							ANIMATION_KIND_RESIZE;
+						con->animation_state.animation->kind = kind;
 						con->animation_state.animation->duration_scale =
-							animation_scale_for_kind(ANIMATION_KIND_RESIZE);
+							animation_scale_for_kind(kind);
 						add_animation(con->animation_state.animation);
 					}
 				} else {

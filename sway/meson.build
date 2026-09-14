@@ -160,6 +160,8 @@ sway_sources = files(
 	'commands/window_close_duration_ms.c',
 	'commands/window_resize_curve.c',
 	'commands/window_resize_duration_ms.c',
+	'commands/window_fullscreen_curve.c',
+	'commands/window_fullscreen_duration_ms.c',
 	'commands/workspace.c',
 	'commands/workspace_layout.c',
 	'commands/workspace_switch_anim.c',

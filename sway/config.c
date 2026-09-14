@@ -365,6 +365,7 @@ static void config_defaults(struct sway_config *config) {
 	config->window_open_duration_ms = -1.0f;
 	config->window_close_duration_ms = -1.0f;
 	config->window_resize_duration_ms = -1.0f;
+	config->window_fullscreen_duration_ms = -1.0f;
 	// Window curves default to ease_out_cubic approximation.
 	config->window_open_curve_c1x = 0.215;
 	config->window_open_curve_c1y = 0.61;
@@ -378,6 +379,10 @@ static void config_defaults(struct sway_config *config) {
 	config->window_resize_curve_c1y = 0.61;
 	config->window_resize_curve_c2x = 0.355;
 	config->window_resize_curve_c2y = 1.0;
+	config->window_fullscreen_curve_c1x = 0.215;
+	config->window_fullscreen_curve_c1y = 0.61;
+	config->window_fullscreen_curve_c2x = 0.355;
+	config->window_fullscreen_curve_c2y = 1.0;
 	config->workspace_switch_anim = false;
 	config->workspace_anim_duration_ms = 200.0f;
 	config->workspace_anim_step_ms = 200.0f;

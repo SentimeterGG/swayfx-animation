@@ -138,6 +138,8 @@ static const struct cmd_handler handlers[] = {
 	{ "unbindsym", cmd_unbindsym },
 	{ "window_close_curve", cmd_window_close_curve },
 	{ "window_close_duration_ms", cmd_window_close_duration_ms },
+	{ "window_fullscreen_curve", cmd_window_fullscreen_curve },
+	{ "window_fullscreen_duration_ms", cmd_window_fullscreen_duration_ms },
 	{ "window_open_animation_delay", cmd_window_open_animation_delay },
 	{ "window_open_curve", cmd_window_open_curve },
 	{ "window_open_duration_ms", cmd_window_open_duration_ms },

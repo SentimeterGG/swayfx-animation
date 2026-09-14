@@ -467,6 +467,12 @@ window_resize_duration_ms <value>
 	animation_duration_ms. Requires animation_duration_ms to be
 	non-zero.
 
+window_fullscreen_duration_ms <value>
+	Duration of window fullscreen enter/exit animations in milliseconds,
+	between 0 (instant snap) and 5000. Unset by default: follows
+	animation_duration_ms. Requires animation_duration_ms to be
+	non-zero.
+
 window_open_curve <preset|cubic-bezier(a, b, c, d)>
 	Easing curve for the window open animation. Presets: linear, ease,
 	ease-in, ease-out, ease-in-out, ease-out-cubic (default),
@@ -479,6 +485,10 @@ window_close_curve <preset|cubic-bezier(a, b, c, d)>
 window_resize_curve <preset|cubic-bezier(a, b, c, d)>
 	Easing curve for window move/resize animations. Same presets as
 	window_open_curve. (Default ease-out-cubic.)
+
+window_fullscreen_curve <preset|cubic-bezier(a, b, c, d)>
+	Easing curve for window fullscreen enter/exit animations. Same
+	presets as window_open_curve. (Default ease-out-cubic.)
 
 *assign* <criteria> [→] [workspace] [number] <workspace>
 	Assigns windows matching _criteria_ (see *CRITERIA* for details) to

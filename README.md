@@ -33,10 +33,12 @@ Control the duration and easing of window open, close, and move/resize animation
 - `window_open_duration_ms <value>`: Open animation duration in milliseconds (0-5000, 0 = instant). Unset by default: follows `animation_duration_ms`.
 - `window_close_duration_ms <value>`: Close animation duration in milliseconds (0-5000, 0 = instant). Unset by default: follows 0.8x `animation_duration_ms`.
 - `window_resize_duration_ms <value>`: Move/resize animation duration in milliseconds (0-5000, 0 = instant). Unset by default: follows `animation_duration_ms`.
+- `window_fullscreen_duration_ms <value>`: Fullscreen enter/exit animation duration in milliseconds (0-5000, 0 = instant snap). Unset by default: follows `animation_duration_ms`.
 - `window_open_animation_delay <value>`: Holds a new window hidden for `<value>` milliseconds before its open animation runs, so sibling resize finishes first (0-5000, default: 90). Set to 0 to open immediately. Ignored when the target workspace is empty.
 - `window_open_curve <preset|cubic-bezier(a, b, c, d)>`: Easing for the open animation.
 - `window_close_curve <preset|cubic-bezier(a, b, c, d)>`: Easing for the close animation.
 - `window_resize_curve <preset|cubic-bezier(a, b, c, d)>`: Easing for move/resize animations.
+- `window_fullscreen_curve <preset|cubic-bezier(a, b, c, d)>`: Easing for fullscreen enter/exit animations.
   - Curve presets: `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`, `ease-out-cubic` (default), `menu_decel`.
   - Example: `window_open_curve cubic-bezier(0.215, 0.61, 0.355, 1)`.
 
